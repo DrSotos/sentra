@@ -47,6 +47,8 @@ export const apiService = {
     getLatestMeasurements: () => api.get('/measurements/latest'),
     getAggregate: (params?: any) => api.get('/measurements/aggregate', { params }),
     exportMeasurements: (params?: any) => api.get('/measurements/export', { params }),
+    exportGeoJSON: () => api.get('/measurements/export/geojson'),
+    exportCSV: (stationId?: string) => api.get('/measurements/export/csv', { params: { station_id: stationId }, responseType: 'blob' }),
   },
   analytics: {
     detectAnomalies: (data: any) => api.post('/analytics/anomalies', data),
@@ -55,6 +57,8 @@ export const apiService = {
     getSummary: (stationId: string) => api.get('/analytics/summary', { params: { station_id: stationId } }),
     triggerLiveIngest: () => api.post('/analytics/ingest-live'),
     getPolicyBrief: () => api.get('/analytics/report/policy-brief'),
+    simulateScenario: (data: any) => api.post('/analytics/simulate', data),
+    getCitizenAdvisory: () => api.get('/analytics/citizen-advisory'),
   },
   alerts: {
     getAlerts: () => api.get('/alerts'),

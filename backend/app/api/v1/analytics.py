@@ -12,16 +12,19 @@ from app.models.user import User
 from app.schemas.analytics import (
     AnomalyDetectionRequest, AnomalyResponse,
     ForecastRequest, ForecastResponse,
-    PolicyBriefResponse
+    PolicyBriefResponse,
+    ScenarioSimulationRequest, ScenarioSimulationResponse,
+    CitizenAdvisoryResponse
 )
 from app.api.deps import get_current_user, require_role
-from app.services.ml_service import AnomalyDetector, TrendForecaster
+from app.services.ml_service import AnomalyDetector, TrendForecaster, PolicyScenarioSimulator
 from app.services.ingestion_service import ingestion_service
 from app.api.v1.ws import manager
 
 router = APIRouter()
 anomaly_detector = AnomalyDetector()
 forecaster = TrendForecaster()
+simulator = PolicyScenarioSimulator()
 
 @router.post("/anomalies", response_model=List[AnomalyResponse])
 async def run_anomaly_detection(
@@ -121,14 +124,12 @@ async def get_policy_brief(
     """
     Generates a formal EU Horizon Europe Environmental Policy Brief.
     """
-    # Fetch recent measurements to calculate stats
     m_res = await db.execute(select(Measurement).order_by(Measurement.time.desc()).limit(500))
     measurements = m_res.scalars().all()
     
     s_res = await db.execute(select(Station))
     stations = s_res.scalars().all()
 
-    # Calculate average PM2.5 per station
     station_stats = {}
     for s in stations:
         station_stats[s.station_id] = {"name": s.name, "city": s.city, "pm25_values": []}
@@ -184,4 +185,110 @@ async def get_policy_brief(
         station_rankings=rankings,
         key_recommendations=recommendations,
         disclaimer="EU Horizon Europe Research Prototype (TRL 5). Prepared according to European Environment Agency guidelines."
+    )
+
+@router.post("/simulate", response_model=ScenarioSimulationResponse)
+async def run_scenario_simulation(
+    req: ScenarioSimulationRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user)
+):
+    """
+    Runs What-If Policy Intervention Scenario Simulation.
+    """
+    st_res = await db.execute(select(Station).where(Station.station_id == req.station_id))
+    station = st_res.scalars().first()
+    if not station:
+        raise HTTPException(status_code=404, detail="Station not found")
+
+    # Get recent measurements baseline for this station
+    m_res = await db.execute(
+        select(Measurement).where(Measurement.station_id == req.station_id).order_by(Measurement.time.desc()).limit(48)
+    )
+    measurements = m_res.scalars().all()
+    
+    pm25_vals = [m.pm25 for m in measurements if m.pm25 is not None]
+    no2_vals = [m.no2 for m in measurements if m.no2 is not None]
+
+    base_pm25 = float(sum(pm25_vals) / len(pm25_vals)) if pm25_vals else 18.0
+    base_no2 = float(sum(no2_vals) / len(no2_vals)) if no2_vals else 32.0
+
+    res = simulator.simulate(
+        baseline_pm25=base_pm25,
+        baseline_no2=base_no2,
+        traffic_reduction=req.traffic_reduction_pct,
+        green_canopy=req.green_canopy_increase_pct,
+        ev_transit=req.ev_transit_share_pct
+    )
+
+    return ScenarioSimulationResponse(
+        station_id=station.station_id,
+        station_name=station.name,
+        city=station.city or "Unknown",
+        **res
+    )
+
+@router.get("/citizen-advisory", response_model=CitizenAdvisoryResponse)
+async def get_citizen_advisory(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user)
+):
+    """
+    Public Citizen Health & Sports Advisory.
+    """
+    s_res = await db.execute(select(Station).where(Station.is_active == True))
+    stations = s_res.scalars().all()
+
+    # Get latest measurements per station
+    city_summaries = []
+    max_pm25 = 0.0
+
+    for s in stations:
+        m_res = await db.execute(
+            select(Measurement).where(Measurement.station_id == s.station_id).order_by(Measurement.time.desc()).limit(1)
+        )
+        latest = m_res.scalars().first()
+        pm25 = latest.pm25 if latest and latest.pm25 else 12.0
+        max_pm25 = max(max_pm25, pm25)
+        
+        city_summaries.append({
+            "station_id": s.station_id,
+            "station_name": s.name,
+            "city": s.city,
+            "pm25": round(pm25, 1),
+            "temp": round(latest.temperature if latest and latest.temperature else 20.0, 1),
+            "status": "Good" if pm25 < 15 else "Moderate" if pm25 < 35 else "Poor"
+        })
+
+    if max_pm25 < 15:
+        overall_label = "Εξαιρετική Ποιότητα Αέρα (European AQI Level 1)"
+        color_code = "#10b981"
+        sports_advice = "🟢 Ιδανικές συνθήκες για όλες τις υπαίθριες αθλητικές δραστηριότητες και τρέξιμο."
+        vulnerable_advice = "🟢 Ασφαλές περιβάλλον για ευάλωτες ομάδες (παιδιά, άτομα τρίτης ηλικίας, ασθματικούς)."
+        ventilation_advice = "🪟 Ελεύθερος φυσικός αερισμός κατοικιών καθ' όλη τη διάρκεια της ημέρας."
+        alert = False
+    elif max_pm25 < 35:
+        overall_label = "Μέτρια Ποιότητα Αέρα (European AQI Level 2)"
+        color_code = "#f59e0b"
+        sports_advice = "🟡 Ασφαλής υπαίθρια άθληση για υγιή άτομα. Ευαίσθητοι αθλητές συνιστάται να επιλέξουν απογευματινές ώρες."
+        vulnerable_advice = "🟡 Άτομα με αναπνευστικές παθήσεις καλό είναι να αποφεύγουν παρατεταμένη έντονη κόπωση κοντά σε κεντρικές λεωφόρους."
+        ventilation_advice = "🪟 Συνιστάται αερισμός νωρίς το πρωί πριν τις ώρες κυκλοφοριακής αιχμής."
+        alert = False
+    else:
+        overall_label = "Επιβαρυμένη Ποιότητα Αέρα (European AQI Level 3 / Alert)"
+        color_code = "#ef4444"
+        sports_advice = "🔴 Περιορίστε την έντονη υπαίθρια σωματική άσκηση σε υπαίθριους χώρους."
+        vulnerable_advice = "🔴 Άτομα με άσθμα, καρδιαγγειακά νοσήματα και παιδιά πρέπει να παραμείνουν σε εσωτερικούς χώρους."
+        ventilation_advice = "🪟 Διατηρήστε τα παράθυρα κλειστά κατά τις ώρες αιχμής, χρήση καθαριστή αέρα."
+        alert = True
+
+    return CitizenAdvisoryResponse(
+        overall_aqi_label=overall_label,
+        dominant_pollutant="PM2.5 (Fine Particulate Matter)",
+        color_code=color_code,
+        outdoor_sports_advice=sports_advice,
+        vulnerable_groups_advice=vulnerable_advice,
+        indoor_ventilation_advice=ventilation_advice,
+        who_alert_active=alert,
+        city_summaries=city_summaries
     )

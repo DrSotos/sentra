@@ -1,3 +1,4 @@
+import asyncio
 import random
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
@@ -132,7 +133,23 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[SENTRA] Live ingestion notice: {e}")
 
+    # Start automated background ingestion loop (every 30 min)
+    async def periodic_ingestion():
+        while True:
+            await asyncio.sleep(1800)  # 30 minutes
+            try:
+                from app.services.ingestion_service import ingestion_service
+                async with AsyncSessionLocal() as db:
+                    await ingestion_service.ingest_all_stations(db)
+                    print("[SENTRA Scheduler] Automated 30-min Copernicus telemetry ingestion completed.")
+            except Exception as ex:
+                print(f"[SENTRA Scheduler] Ingestion error: {ex}")
+
+    ingestion_task = asyncio.create_task(periodic_ingestion())
+
     yield
+
+    ingestion_task.cancel()
 
 
 app = FastAPI(

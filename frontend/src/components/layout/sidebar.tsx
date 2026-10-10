@@ -2,14 +2,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Map, BarChart3, AlertTriangle, TrendingUp, Radio, Users, Settings, Activity } from 'lucide-react';
+import { LayoutDashboard, Map, BarChart3, AlertTriangle, TrendingUp, Radio, Users, Settings, Activity, Sliders } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 
 const routes = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-  { href: '/dashboard/map', label: 'Map', icon: Map },
+  { href: '/dashboard/map', label: 'Map View', icon: Map },
+  { href: '/dashboard/simulator', label: 'Policy Simulator', icon: Sliders },
+  { href: '/dashboard/anomalies', label: 'Explainable AI', icon: AlertTriangle },
   { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/dashboard/anomalies', label: 'Anomalies', icon: AlertTriangle },
   { href: '/dashboard/forecast', label: 'Forecast', icon: TrendingUp },
   { href: '/dashboard/stations', label: 'Stations', icon: Radio },
   { href: '/dashboard/users', label: 'Users', icon: Users, adminOnly: true },
@@ -29,7 +30,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {routes.map((route) => {
-          if (route.adminOnly && user?.role !== 'admin') return null;
+          if (route.adminOnly && !user?.roles?.includes('admin')) return null;
           const isActive = pathname === route.href;
           return (
             <Link

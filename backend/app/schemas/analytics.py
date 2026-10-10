@@ -46,3 +46,35 @@ class PolicyBriefResponse(BaseModel):
     station_rankings: List[Dict[str, Any]]
     key_recommendations: List[str]
     disclaimer: str
+
+class ScenarioSimulationRequest(BaseModel):
+    station_id: str
+    traffic_reduction_pct: float = 20.0        # 0% to 60%
+    green_canopy_increase_pct: float = 10.0     # 0% to 40%
+    ev_transit_share_pct: float = 25.0          # 0% to 100%
+
+class ScenarioSimulationResponse(BaseModel):
+    station_id: str
+    station_name: str
+    city: str
+    baseline_pm25: float
+    simulated_pm25: float
+    pm25_reduction_pct: float
+    baseline_no2: float
+    simulated_no2: float
+    no2_reduction_pct: float
+    health_impact_index: str
+    prevented_admissions_annual: int
+    who_compliance_reached: bool
+    policy_feasibility_score: float
+    scientific_summary: str
+
+class CitizenAdvisoryResponse(BaseModel):
+    overall_aqi_label: str
+    dominant_pollutant: str
+    color_code: str
+    outdoor_sports_advice: str
+    vulnerable_groups_advice: str
+    indoor_ventilation_advice: str
+    who_alert_active: bool
+    city_summaries: List[Dict[str, Any]]
