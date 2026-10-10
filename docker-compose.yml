@@ -1,0 +1,98 @@
+version: '3.9'
+
+services:
+  # ──────────── Database ────────────
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: sentra-db
+    environment:
+      POSTGRES_DB: sentra
+      POSTGRES_USER: ${DB_USER:-sentra}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sentra_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sentra}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentra-net
+
+  # ──────────── Cache ────────────
+  redis:
+    image: redis:7-alpine
+    container_name: sentra-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sentra-net
+
+  # ──────────── Backend API ────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sentra-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-sentra}:${DB_PASSWORD:-sentra_secret}@db:5432/sentra
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:80","http://localhost"]'
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - sentra-net
+
+  # ──────────── Frontend ────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sentra-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - sentra-net
+
+  # ──────────── Reverse Proxy ────────────
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: sentra-proxy
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - sentra-net
+
+volumes:
+  pgdata:
+
+networks:
+  sentra-net:
+    driver: bridge
+
