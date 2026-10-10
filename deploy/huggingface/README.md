@@ -24,3 +24,4 @@ Welcome to the **SENTRA** (Smart Environmental Network for Territorial Resilienc
 - **Swagger UI:** `/docs`
 - **ReDoc:** `/redoc`
 - **System Health:** `/api/v1/admin/system/health`
+

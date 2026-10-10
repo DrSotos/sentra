@@ -29,3 +29,4 @@ USER user
 EXPOSE 7860
 
 CMD ["./entrypoint.sh"]
+

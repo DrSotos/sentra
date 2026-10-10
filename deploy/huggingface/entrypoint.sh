@@ -23,3 +23,4 @@ fi
 export PORT=7860
 echo "[SENTRA] Starting FastAPI Uvicorn on 0.0.0.0:7860..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 7860
+

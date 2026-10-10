@@ -77,6 +77,14 @@ license: eupl-1.2
 - [Docker Compose](https://docs.docker.com/compose/) ≥ 2.20
 - Git
 
+### ☁️ Free Cloud Deployment (1-Click)
+
+| Service | Platform | 1-Click Deploy |
+|---------|----------|----------------|
+| 🖥️ **Frontend (UI)** | **Vercel** | [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/DrSotos/sentra&root-directory=frontend) |
+| ⚙️ **Backend API & PostgreSQL** | **Render.com** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/DrSotos/sentra) |
+
+
 ### 2. Clone & Spin Up
 ```bash
 git clone https://github.com/DrSotos/sentra.git
