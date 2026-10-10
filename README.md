@@ -1,3 +1,14 @@
+---
+title: SENTRA - Smart Environmental Network
+emoji: 🌿
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+license: eupl-1.2
+---
+
 <div align="center">
 
 # 🌿 SENTRA
